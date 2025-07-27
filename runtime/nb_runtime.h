@@ -33,7 +33,7 @@ struct routing_table_entry {
 unsigned long long
 nb__routing_table_lookup_from_global(unsigned int, struct routing_table_entry *,
                                      int routing_table_size);
-extern unsigned int (*nb__dns_resolver)(const char *fqdn);
+// extern unsigned int (*nb__dns_resolver)(const char *fqdn);
 unsigned short nb__do_ip_checksum(unsigned char *, size_t len);
 
 // Data queue methods

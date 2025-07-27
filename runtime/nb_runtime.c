@@ -161,8 +161,6 @@ void nb__main_loop_step(void) {
   nb__check_timers();
 }
 
-// Set this at init
-// char nb__my_host_id[6] = {0};
 unsigned int nb__my_host_id;
 unsigned long long nb__my_local_host_id;
 
@@ -205,7 +203,7 @@ void nb__set_user_data(nb__connection_t *c, void *user_data) {
 }
 void *nb__get_user_data(nb__connection_t *c) { return c->user_data; }
 
-unsigned int (*nb__dns_resolver)(const char *fqdn) = NULL;
+// unsigned int (*nb__dns_resolver)(const char *fqdn) = NULL;
 
 unsigned long long
 nb__routing_table_lookup_from_global(unsigned int local_id,

@@ -19,38 +19,9 @@
 static int main_socket = 0;
 
 static int is_netblocks_packet(char *packet, int len) {
-  // Based on actual NetBlocks packet analysis:
-  // - Control packets: 38 bytes
-  // - ACK packets: 39 bytes
-  // - Data packets: 56 bytes (38 header + 18 payload)
-
-  // Only accept known NetBlocks packet sizes
-  if (len != 38 && len != 39 && len != 56 && len != 55) {
-    printf("[FILTER] Rejecting packet: invalid size %d bytes (expected 38, 39, "
-           "56, or 55)\n",
-           len);
+  if (len != 16 && len != 38 && len != 39 && len != 43 && len != 293) {
     return 0;
   }
-
-  // For NetBlocks packets, check if it's our own packet
-  // NetBlocks packets start directly with dst_host_id (6 bytes) and src_host_id
-  // (6 bytes)
-  if (len >= 12) {
-    unsigned int src_ip = 0;
-    memcpy(&src_ip, packet + 6,
-           4); // src_host_id starts at byte 6, get first 4 bytes
-
-    // Get our IP address
-    extern unsigned int nb__my_host_id;
-
-    if (src_ip == nb__my_host_id) {
-      printf("[FILTER] Rejecting our own packet: src_ip=0x%x, my_ip=0x%x\n",
-             src_ip, nb__my_host_id);
-      return 0; // Skip our own packets
-    }
-  }
-
-  printf("[FILTER] Accepting NetBlocks packet: valid size %d bytes\n", len);
   return 1;
 }
 
@@ -98,19 +69,8 @@ char *nb__poll_packet(int *size, int headroom) {
       return NULL; // No more packets or error
     }
 
-    // Print all bytes for debugging (including header)
-    printf("[nb__poll_packet] Full packet (%d bytes): ", len);
-    for (int i = 0; i < len; i++) {
-      printf("%02x ", (unsigned char)temp_buf[i]);
-      if ((i + 1) % 16 == 0)
-        printf("\n[nb__poll_packet]                     ");
-    }
-    printf("\n");
-
     // Apply NetBlocks packet filter
     if (!is_netblocks_packet(temp_buf, len)) {
-      printf(
-          "[nb__poll_packet] Packet filtered out, continuing to next packet\n");
       continue;
     }
 
