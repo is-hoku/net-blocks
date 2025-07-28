@@ -19,8 +19,8 @@
 static int main_socket = 0;
 
 static int is_netblocks_packet(char *packet, int len) {
-  // ARP (42byte), UDP-over-Ethernet with 256byte payload (275byte)
-  if (len != 42 && len != 275) {
+  // ARP (42byte), UDP-over-Ethernet with 256byte payload (276byte)
+  if (len != 42 && len != 276) {
     return 0;
   }
   return 1;
