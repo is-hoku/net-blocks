@@ -18,14 +18,6 @@
 
 static int main_socket = 0;
 
-static int is_netblocks_packet(char *packet, int len) {
-  // ARP (42byte), UDP-over-Ethernet with 256byte payload (276byte)
-  if (len != 42 && len != 276) {
-    return 0;
-  }
-  return 1;
-}
-
 void nb__linux_runtime_init(char *interface_name) {
   main_socket = socket(AF_PACKET, SOCK_RAW, htons(ETH_P_ALL));
   if (!main_socket) {
@@ -68,11 +60,6 @@ char *nb__poll_packet(int *size, int headroom) {
     len = (int)read(main_socket, temp_buf, LINUX_MTU);
     if (len <= 0) {
       return NULL; // No more packets or error
-    }
-
-    // Apply NetBlocks packet filter
-    if (!is_netblocks_packet(temp_buf, len)) {
-      continue;
     }
 
     char *buf = malloc(LINUX_MTU + headroom);
