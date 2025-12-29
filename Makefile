@@ -49,9 +49,9 @@ endif
 
 
 ifeq ($(DEBUG),1)
-RCFLAGS=-g
+RCFLAGS=-g -fPIC
 else
-RCFLAGS=-O3 -fno-strict-aliasing
+RCFLAGS=-O3 -fno-strict-aliasing -fPIC
 endif
 
 
