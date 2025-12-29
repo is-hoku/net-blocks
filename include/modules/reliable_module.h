@@ -9,40 +9,56 @@
 
 namespace net_blocks {
 
-
-class reliable_module: public module {
+class reliable_module : public module {
 private:
-	bool is_enabled = true;
-	friend class inorder_module;
+  bool is_enabled = true;
+  friend class inorder_module;
+
 public:
-	void init_module(void);
+  void init_module(void);
 
-	module::hook_status hook_establish(builder::dyn_var<connection_t*> c, 
-		builder::dyn_var<unsigned int> remote_host, builder::dyn_var<unsigned int> remote_app, 
-		builder::dyn_var<unsigned int> local_app);
-	module::hook_status hook_send(builder::dyn_var<connection_t*> c, packet_t, 
-		builder::dyn_var<char*> buff, builder::dyn_var<unsigned int> len, builder::dyn_var<int*> ret_len);
+  module::hook_status hook_establish(builder::dyn_var<connection_t *> c,
+                                     builder::dyn_var<unsigned int> remote_host,
+                                     builder::dyn_var<unsigned int> remote_app,
+                                     builder::dyn_var<unsigned int> local_app);
+  module::hook_status hook_send(builder::dyn_var<connection_t *> c, packet_t,
+                                builder::dyn_var<char *> buff,
+                                builder::dyn_var<unsigned int> len,
+                                builder::dyn_var<int *> ret_len);
 
-	module::hook_status hook_ingress(packet_t);
+  module::hook_status hook_ingress(packet_t);
 
-	void gen_timer_callback(std::ostream &oss);
+  // Context-based hooks
+  module::hook_status
+  hook_establish_ctx(builder::dyn_var<runtime::context_t *> ctx,
+                     builder::dyn_var<connection_t *> c,
+                     builder::dyn_var<unsigned int> remote_host,
+                     builder::dyn_var<unsigned int> remote_app,
+                     builder::dyn_var<unsigned int> local_app) override;
 
-	void configEnableReliability(void) {
-		is_enabled = true;
-	}
-	void configDisableReliability(void) {
-		is_enabled = false;
-	}
+  module::hook_status hook_send_ctx(builder::dyn_var<runtime::context_t *> ctx,
+                                    builder::dyn_var<connection_t *> c,
+                                    packet_t, builder::dyn_var<char *> buff,
+                                    builder::dyn_var<unsigned int> len,
+                                    builder::dyn_var<int *> ret_len) override;
 
-private:		
-	reliable_module() = default;
+  module::hook_status
+  hook_ingress_ctx(builder::dyn_var<runtime::context_t *> ctx,
+                   packet_t) override;
+
+  void gen_timer_callback(std::ostream &oss);
+
+  void configEnableReliability(void) { is_enabled = true; }
+  void configDisableReliability(void) { is_enabled = false; }
+
+private:
+  reliable_module() = default;
+
 public:
-	static reliable_module instance;
-	const char* get_module_name(void) override { return "ReliableModule"; }
+  static reliable_module instance;
+  const char *get_module_name(void) override { return "ReliableModule"; }
 };
 
-}
-
-
+} // namespace net_blocks
 
 #endif

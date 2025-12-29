@@ -7,48 +7,99 @@ namespace net_blocks {
 
 interface_module interface_module::instance;
 
-void interface_module::init_module(void) {	
-	conn_layout.register_member<callback_t>("callback_f");	
-	conn_layout.register_member<builder::dyn_var<void*>>("user_data");
-	auto computed_total_len = new generic_integer_member<int>((int)member_flags::aligned);
-	//total_len->set_custom_range(0, 256);
+void interface_module::init_module(void) {
+  conn_layout.register_member<callback_t>("callback_f");
+  conn_layout.register_member<builder::dyn_var<void *>>("user_data");
+  auto computed_total_len =
+      new generic_integer_member<int>((int)member_flags::aligned);
+  // total_len->set_custom_range(0, 256);
 
-	net_packet.add_member("computed_total_len", computed_total_len, 0);
-
-	
+  net_packet.add_member("computed_total_len", computed_total_len, 0);
 }
 
-builder::dyn_var<connection_t*> interface_module::establish_impl(builder::dyn_var<unsigned int> host_id, builder::dyn_var<unsigned int> app_id, 
-	builder::dyn_var<unsigned int> ca, callback_t callback) {
-	// Establish a new connection object
-	builder::dyn_var<connection_t*> c;
-	c = runtime::malloc(runtime::size_of(c[0]));
+builder::dyn_var<connection_t *>
+interface_module::establish_impl(builder::dyn_var<unsigned int> host_id,
+                                 builder::dyn_var<unsigned int> app_id,
+                                 builder::dyn_var<unsigned int> ca,
+                                 callback_t callback) {
+  // Establish a new connection object
+  builder::dyn_var<connection_t *> c;
+  c = runtime::malloc(runtime::size_of(c[0]));
 
-	conn_layout.get(c, "callback_f") = callback;
-	framework::instance.run_establish_path(c, host_id, app_id, ca);
-		
-	return c;	
+  conn_layout.get(c, "callback_f") = callback;
+  framework::instance.run_establish_path(c, host_id, app_id, ca);
+
+  return c;
 }
 
-void interface_module::destablish_impl(builder::dyn_var<connection_t*> c) {
-	framework::instance.run_destablish_path(c);
-	runtime::free(c);
+void interface_module::destablish_impl(builder::dyn_var<connection_t *> c) {
+  framework::instance.run_destablish_path(c);
+  runtime::free(c);
 }
 
-builder::dyn_var<int> interface_module::send_impl(builder::dyn_var<connection_t*> c, builder::dyn_var<char*> buff, builder::dyn_var<int> len) {
-	return framework::instance.run_send_path(c, buff, len);
+builder::dyn_var<int>
+interface_module::send_impl(builder::dyn_var<connection_t *> c,
+                            builder::dyn_var<char *> buff,
+                            builder::dyn_var<int> len) {
+  return framework::instance.run_send_path(c, buff, len);
 }
 
-// This function is invoked when a packet is polled, 
+// This function is invoked when a packet is polled,
 // runs the ingress path
-void interface_module::run_ingress_step(builder::dyn_var<void*> p, builder::dyn_var<int> len) {
-	framework::instance.run_ingress_path(p);
+void interface_module::run_ingress_step(builder::dyn_var<void *> p,
+                                        builder::dyn_var<int> len) {
+  framework::instance.run_ingress_path(p);
 }
 
 void interface_module::net_init_impl(void) {
-	runtime::init_timers();
-	framework::instance.run_net_init_path();
+  runtime::init_timers();
+  framework::instance.run_net_init_path();
 }
 
+// ==================== Context-based implementations ====================
 
+builder::dyn_var<connection_t *>
+interface_module::establish_impl_ctx(builder::dyn_var<runtime::context_t *> ctx,
+                                     builder::dyn_var<unsigned int> host_id,
+                                     builder::dyn_var<unsigned int> app_id,
+                                     builder::dyn_var<unsigned int> ca,
+                                     callback_t callback) {
+  // Establish a new connection object
+  builder::dyn_var<connection_t *> c;
+  c = runtime::malloc(runtime::size_of(c[0]));
+
+  conn_layout.get(c, "callback_f") = callback;
+  framework::instance.run_establish_path_ctx(ctx, c, host_id, app_id, ca);
+
+  return c;
 }
+
+void interface_module::destablish_impl_ctx(
+    builder::dyn_var<runtime::context_t *> ctx,
+    builder::dyn_var<connection_t *> c) {
+  framework::instance.run_destablish_path_ctx(ctx, c);
+  runtime::free(c);
+}
+
+builder::dyn_var<int>
+interface_module::send_impl_ctx(builder::dyn_var<runtime::context_t *> ctx,
+                                builder::dyn_var<connection_t *> c,
+                                builder::dyn_var<char *> buff,
+                                builder::dyn_var<int> len) {
+  return framework::instance.run_send_path_ctx(ctx, c, buff, len);
+}
+
+void interface_module::run_ingress_step_ctx(
+    builder::dyn_var<runtime::context_t *> ctx, builder::dyn_var<void *> p,
+    builder::dyn_var<int> len) {
+  framework::instance.run_ingress_path_ctx(ctx, p);
+}
+
+void interface_module::net_init_impl_ctx(
+    builder::dyn_var<runtime::context_t *> ctx) {
+  // For context-based version, timers should be initialized in context
+  // runtime::init_timers_ctx(ctx); // TODO: Add context-aware timer init
+  framework::instance.run_net_init_path_ctx(ctx);
+}
+
+} // namespace net_blocks

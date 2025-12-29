@@ -6,27 +6,54 @@ namespace net_blocks {
 network_module network_module::instance;
 
 void network_module::init_module(void) {
-	m_establish_depends = {&checksum_module::instance};
-	m_destablish_depends = {&checksum_module::instance};
-	m_send_depends = {&checksum_module::instance};
-	m_ingress_depends.clear();
+  m_establish_depends = {&checksum_module::instance};
+  m_destablish_depends = {&checksum_module::instance};
+  m_send_depends = {&checksum_module::instance};
+  m_ingress_depends.clear();
 
-	framework::instance.register_module(this);	
+  framework::instance.register_module(this);
 }
 
+module::hook_status
+network_module::hook_send(builder::dyn_var<connection_t *> c, packet_t p,
+                          builder::dyn_var<char *> buff,
+                          builder::dyn_var<unsigned int> len,
+                          builder::dyn_var<int *> ret_len) {
+  builder::dyn_var<int> size = net_packet["computed_total_len"]->get_integer(p);
 
-module::hook_status network_module::hook_send(builder::dyn_var<connection_t*> c, packet_t p,
-	builder::dyn_var<char*> buff, builder::dyn_var<unsigned int> len, builder::dyn_var<int*> ret_len) {
-	builder::dyn_var<int> size = net_packet["computed_total_len"]->get_integer(p);
-	
-	runtime::send_packet(p + get_headroom(), size);
-	//runtime::return_send_buffer(p);
-	return module::hook_status::HOOK_CONTINUE;
+  net_packet.print_layout(std::cout);
+  runtime::send_packet(p + get_headroom(), size);
+  // runtime::return_send_buffer(p);
+  return module::hook_status::HOOK_CONTINUE;
 }
 module::hook_status network_module::hook_ingress(packet_t p) {
-	if (!framework::instance.isIPCompat())
-		net_packet["computed_total_len"]->set_integer(p, net_packet["total_len"]->get_integer(p));
-	return module::hook_status::HOOK_CONTINUE;
+  if (!framework::instance.isIPCompat())
+    net_packet["computed_total_len"]->set_integer(
+        p, net_packet["total_len"]->get_integer(p));
+  return module::hook_status::HOOK_CONTINUE;
 }
 
+// Context-based versions
+module::hook_status
+network_module::hook_send_ctx(builder::dyn_var<runtime::context_t *> ctx,
+                              builder::dyn_var<connection_t *> c, packet_t p,
+                              builder::dyn_var<char *> buff,
+                              builder::dyn_var<unsigned int> len,
+                              builder::dyn_var<int *> ret_len) {
+  builder::dyn_var<int> size = net_packet["computed_total_len"]->get_integer(p);
+
+  net_packet.print_layout(std::cout);
+  runtime::send_packet_ctx(ctx, p + get_headroom(), size);
+  return module::hook_status::HOOK_CONTINUE;
 }
+
+module::hook_status
+network_module::hook_ingress_ctx(builder::dyn_var<runtime::context_t *> ctx,
+                                 packet_t p) {
+  if (!framework::instance.isIPCompat())
+    net_packet["computed_total_len"]->set_integer(
+        p, net_packet["total_len"]->get_integer(p));
+  return module::hook_status::HOOK_CONTINUE;
+}
+
+} // namespace net_blocks

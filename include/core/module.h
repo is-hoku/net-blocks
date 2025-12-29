@@ -7,54 +7,84 @@ namespace net_blocks {
 
 class module {
 
-public: 
-	enum class hook_status {
-		HOOK_CONTINUE,
-		HOOK_DROP
-	};
+public:
+  enum class hook_status { HOOK_CONTINUE, HOOK_DROP };
 
-	virtual void init_module(void) = 0;
-	
-	// Various path hooking routines
-	virtual hook_status hook_establish(builder::dyn_var<connection_t*> c, 
-		builder::dyn_var<unsigned int> h, builder::dyn_var<unsigned int> a, builder::dyn_var<unsigned int> sa) {
-		return hook_status::HOOK_CONTINUE;	
-	}
-	
-	virtual hook_status hook_destablish(builder::dyn_var<connection_t*> c) {
-		return hook_status::HOOK_CONTINUE;	
-	}
-	
+  virtual void init_module(void) = 0;
 
-	virtual hook_status hook_send(builder::dyn_var<connection_t*> c, packet_t, 
-		builder::dyn_var<char*> buff, builder::dyn_var<unsigned int> len, builder::dyn_var<int*> ret_len) {
-		return hook_status::HOOK_CONTINUE;	
-	}
-	
+  // Various path hooking routines
+  virtual hook_status hook_establish(builder::dyn_var<connection_t *> c,
+                                     builder::dyn_var<unsigned int> h,
+                                     builder::dyn_var<unsigned int> a,
+                                     builder::dyn_var<unsigned int> sa) {
+    return hook_status::HOOK_CONTINUE;
+  }
 
-	virtual hook_status hook_ingress(packet_t) {
-		return hook_status::HOOK_CONTINUE;	
-	}
+  virtual hook_status hook_destablish(builder::dyn_var<connection_t *> c) {
+    return hook_status::HOOK_CONTINUE;
+  }
 
-	// This hook doesn't require a return value because all modules 
-	// need to be initialized
-	virtual void hook_net_init(void) {
-		return;		
-	}	
+  virtual hook_status hook_send(builder::dyn_var<connection_t *> c, packet_t,
+                                builder::dyn_var<char *> buff,
+                                builder::dyn_var<unsigned int> len,
+                                builder::dyn_var<int *> ret_len) {
+    return hook_status::HOOK_CONTINUE;
+  }
 
-	// Dependency stuff
-	std::vector<module*> m_establish_depends;
-	std::vector<module*> m_destablish_depends;
-	std::vector<module*> m_send_depends;
-	std::vector<module*> m_ingress_depends;
-	bool mark_scheduled;
-		
-	// Enable virtual inheritance
-	virtual ~module();
-	int m_sequence;
+  virtual hook_status hook_ingress(packet_t) {
+    return hook_status::HOOK_CONTINUE;
+  }
 
-	virtual const char* get_module_name(void) { return "GenericUnamedModule"; }	
+  // This hook doesn't require a return value because all modules
+  // need to be initialized
+  virtual void hook_net_init(void) { return; }
+
+  // ==================== Context-based hooks ====================
+  // Default implementations call the global versions (for backward compat)
+
+  virtual hook_status hook_establish_ctx(
+      builder::dyn_var<runtime::context_t *> ctx,
+      builder::dyn_var<connection_t *> c, builder::dyn_var<unsigned int> h,
+      builder::dyn_var<unsigned int> a, builder::dyn_var<unsigned int> sa) {
+    return hook_status::HOOK_CONTINUE;
+  }
+
+  virtual hook_status
+  hook_destablish_ctx(builder::dyn_var<runtime::context_t *> ctx,
+                      builder::dyn_var<connection_t *> c) {
+    return hook_status::HOOK_CONTINUE;
+  }
+
+  virtual hook_status hook_send_ctx(builder::dyn_var<runtime::context_t *> ctx,
+                                    builder::dyn_var<connection_t *> c,
+                                    packet_t, builder::dyn_var<char *> buff,
+                                    builder::dyn_var<unsigned int> len,
+                                    builder::dyn_var<int *> ret_len) {
+    return hook_status::HOOK_CONTINUE;
+  }
+
+  virtual hook_status
+  hook_ingress_ctx(builder::dyn_var<runtime::context_t *> ctx, packet_t) {
+    return hook_status::HOOK_CONTINUE;
+  }
+
+  virtual void hook_net_init_ctx(builder::dyn_var<runtime::context_t *> ctx) {
+    return;
+  }
+
+  // Dependency stuff
+  std::vector<module *> m_establish_depends;
+  std::vector<module *> m_destablish_depends;
+  std::vector<module *> m_send_depends;
+  std::vector<module *> m_ingress_depends;
+  bool mark_scheduled;
+
+  // Enable virtual inheritance
+  virtual ~module();
+  int m_sequence;
+
+  virtual const char *get_module_name(void) { return "GenericUnamedModule"; }
 };
 
-}
+} // namespace net_blocks
 #endif

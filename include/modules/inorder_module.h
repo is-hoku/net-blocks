@@ -7,41 +7,59 @@
 
 namespace net_blocks {
 
-class inorder_module: public module {
+class inorder_module : public module {
 public:
-	
-	enum inorder_strategy_t {
-		drop_out_of_order,
-		hold_forever,
-		no_inorder,	
-	};
-	
-	void configInorderStrategy(inorder_strategy_t t) {
-		inorder_strategy = t;
-	}
-	
-	void init_module(void);
+  enum inorder_strategy_t {
+    drop_out_of_order,
+    hold_forever,
+    no_inorder,
+  };
 
-	module::hook_status hook_establish(builder::dyn_var<connection_t*> c, 
-		builder::dyn_var<unsigned int> remote_host, builder::dyn_var<unsigned int> remote_app, 
-		builder::dyn_var<unsigned int> local_app);
+  void configInorderStrategy(inorder_strategy_t t) { inorder_strategy = t; }
 
-	module::hook_status hook_send(builder::dyn_var<connection_t*> c, packet_t, 
-		builder::dyn_var<char*> buff, builder::dyn_var<unsigned int> len, builder::dyn_var<int*> ret_len);
+  void init_module(void);
 
-	module::hook_status hook_ingress(packet_t);
+  module::hook_status hook_establish(builder::dyn_var<connection_t *> c,
+                                     builder::dyn_var<unsigned int> remote_host,
+                                     builder::dyn_var<unsigned int> remote_app,
+                                     builder::dyn_var<unsigned int> local_app);
+
+  module::hook_status hook_send(builder::dyn_var<connection_t *> c, packet_t,
+                                builder::dyn_var<char *> buff,
+                                builder::dyn_var<unsigned int> len,
+                                builder::dyn_var<int *> ret_len);
+
+  module::hook_status hook_ingress(packet_t);
+
+  // Context-based hooks
+  module::hook_status
+  hook_establish_ctx(builder::dyn_var<runtime::context_t *> ctx,
+                     builder::dyn_var<connection_t *> c,
+                     builder::dyn_var<unsigned int> remote_host,
+                     builder::dyn_var<unsigned int> remote_app,
+                     builder::dyn_var<unsigned int> local_app) override;
+
+  module::hook_status hook_send_ctx(builder::dyn_var<runtime::context_t *> ctx,
+                                    builder::dyn_var<connection_t *> c,
+                                    packet_t, builder::dyn_var<char *> buff,
+                                    builder::dyn_var<unsigned int> len,
+                                    builder::dyn_var<int *> ret_len) override;
+
+  module::hook_status
+  hook_ingress_ctx(builder::dyn_var<runtime::context_t *> ctx,
+                   packet_t) override;
 
 private:
-	inorder_strategy_t inorder_strategy = drop_out_of_order;
+  inorder_strategy_t inorder_strategy = drop_out_of_order;
 
 private:
-	inorder_module() = default;
+  inorder_module() = default;
+
 public:
-	static inorder_module instance;
-	const char* get_module_name(void) override { return "InorderModule"; }
+  static inorder_module instance;
+  const char *get_module_name(void) override { return "InorderModule"; }
 };
 
-
-}
+} // namespace net_blocks
 
 #endif

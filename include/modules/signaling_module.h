@@ -6,57 +6,64 @@
 
 namespace net_blocks {
 
-class signaling_module_after: public module {
+class signaling_module_after : public module {
 
 public:
-	void init_module(void);
+  void init_module(void);
 
-	// Various path hooking routines
-	module::hook_status hook_establish(builder::dyn_var<connection_t*> c, 
-		builder::dyn_var<unsigned int> h, builder::dyn_var<unsigned int> a, builder::dyn_var<unsigned int> sa);
+  // Various path hooking routines
+  module::hook_status hook_establish(builder::dyn_var<connection_t *> c,
+                                     builder::dyn_var<unsigned int> h,
+                                     builder::dyn_var<unsigned int> a,
+                                     builder::dyn_var<unsigned int> sa);
+
+  // Context-based hook
+  module::hook_status
+  hook_establish_ctx(builder::dyn_var<runtime::context_t *> ctx,
+                     builder::dyn_var<connection_t *> c,
+                     builder::dyn_var<unsigned int> h,
+                     builder::dyn_var<unsigned int> a,
+                     builder::dyn_var<unsigned int> sa) override;
+
 public:
-	static signaling_module_after instance;
-	const char* get_module_name(void) override { return "SignalingModuleAfter"; }
-
+  static signaling_module_after instance;
+  const char *get_module_name(void) override { return "SignalingModuleAfter"; }
 };
 
-
-class signaling_module: public module {
+class signaling_module : public module {
 private:
-	bool is_enabled = false;
-	
+  bool is_enabled = false;
 
 public:
-	void init_module(void);
+  void init_module(void);
 
-	// Various path hooking routines
+  // Various path hooking routines
 
-	module::hook_status hook_ingress(packet_t);
+  module::hook_status hook_ingress(packet_t);
 
+  // Context-based hook
+  module::hook_status
+  hook_ingress_ctx(builder::dyn_var<runtime::context_t *> ctx,
+                   packet_t) override;
 
-	void configEnableSignaling(void) {
-		is_enabled = true;
-	}	
-	void configDisableSignaling(void) {
-		is_enabled = false;
-	}	
+  void configEnableSignaling(void) { is_enabled = true; }
+  void configDisableSignaling(void) { is_enabled = false; }
 
-	enum signaling_state_t {
-		WAITING_FOR_SIGNAL = 0,
-		SIGNALED = 1,
-		SIGNAL_HANDLED = 2, 
-		SIGNAL_NA = 3,
-	};
+  enum signaling_state_t {
+    WAITING_FOR_SIGNAL = 0,
+    SIGNALED = 1,
+    SIGNAL_HANDLED = 2,
+    SIGNAL_NA = 3,
+  };
 
 private:
-	signaling_module() = default;
+  signaling_module() = default;
+
 public:
-	static signaling_module instance;
-	const char* get_module_name(void) override { return "SignalingModule"; }
-	friend class signaling_module_after;
+  static signaling_module instance;
+  const char *get_module_name(void) override { return "SignalingModule"; }
+  friend class signaling_module_after;
 };
-}
-
-
+} // namespace net_blocks
 
 #endif

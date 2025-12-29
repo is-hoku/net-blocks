@@ -53,11 +53,15 @@ void identifier_module::init_module(void) {
   net_packet.add_member("src_host_id", src_host_id, 1);
 
   // Member to identify protocol
-  if (framework::instance.isEthCompat())
-    net_packet.add_member(
-        "protocol_identifier",
-        new generic_integer_member<unsigned short>((int)member_flags::aligned),
-        1);
+  // if (framework::instance.isEthCompat())
+  //  net_packet.add_member(
+  //      "protocol_identifier",
+  //      new generic_integer_member<unsigned
+  //      short>((int)member_flags::aligned), 1);
+  net_packet.add_member(
+      "protocol_identifier",
+      new generic_integer_member<unsigned short>((int)member_flags::aligned),
+      1);
 
   auto dst_app_id = new generic_integer_member<unsigned short>(0);
   auto src_app_id = new generic_integer_member<unsigned short>(0);
@@ -285,6 +289,218 @@ module::hook_status identifier_module::hook_ingress(packet_t p) {
     return module::hook_status::HOOK_DROP;
 
   c = retrieve_wildcard_connection(dst_app_id);
+
+  if (c != 0) {
+    runtime::insert_accept_queue(conn_layout.get(c, "accept_queue"), src_app_id,
+                                 src_host_id, p);
+    // At this point we will fire an accept event
+    conn_layout.get(c, "callback_f")(QUEUE_EVENT_ACCEPT_READY, c);
+  } else {
+    runtime::nb_assert(false, "Failed to lookup connection");
+  }
+
+  // It is okay to drop the packet even if we have a wildcard match, the packet
+  // will be reprocessed again when the establish path is run for the new packet
+  return module::hook_status::HOOK_DROP;
+}
+
+// ==================== Context-based hook implementations ====================
+
+void identifier_module::hook_net_init_ctx(
+    builder::dyn_var<runtime::context_t *> ctx) {
+  get_state_ctx(ctx, "num_conn") = 0;
+  get_state_ctx(ctx, "routing_table") = 0;
+  get_state_ctx(ctx, "routing_table_len") = 0;
+
+  get_ctx(ctx, "nb__my_local_host_id") = runtime::routing_lookup_from_global(
+      get_ctx(ctx, "nb__my_host_id"), get_state_ctx(ctx, "routing_table"),
+      get_state_ctx(ctx, "routing_table_len"));
+}
+
+// Context-based internal helper functions
+static void add_connection_ctx(builder::dyn_var<runtime::context_t *> ctx,
+                               builder::dyn_var<connection_t *> c,
+                               builder::dyn_var<unsigned int> appid,
+                               builder::dyn_var<unsigned int> src_app_id,
+                               builder::dyn_var<unsigned long long> src_host_id,
+                               identifier_module::flow_identifier_t flow_id) {
+  builder::dyn_var<int> idx = get_state_ctx(ctx, "num_conn");
+  get_state_ctx(ctx, "num_conn") = idx + 1;
+
+  get_state_ctx(ctx, "active_local_app_ids")[idx] = appid;
+  get_state_ctx(ctx, "active_connections")[idx] = c;
+  if (flow_id == identifier_module::flow_identifier_t::src_dst_identifier) {
+    get_state_ctx(ctx, "active_remote_app_ids")[idx] = src_app_id;
+    get_state_ctx(ctx, "active_remote_host_ids")[idx] = src_host_id;
+  }
+}
+
+static bool
+match_connection_ctx(builder::dyn_var<runtime::context_t *> ctx,
+                     builder::dyn_var<int> &index,
+                     builder::dyn_var<unsigned int> dst_app_id,
+                     builder::dyn_var<unsigned int> src_app_id,
+                     builder::dyn_var<unsigned long long> src_host_id,
+                     identifier_module::flow_identifier_t flow_id) {
+  if (flow_id == identifier_module::flow_identifier_t::src_dst_identifier) {
+    return (bool)(get_state_ctx(ctx, "active_local_app_ids")[index] ==
+                      dst_app_id &&
+                  get_state_ctx(ctx, "active_remote_app_ids")[index] ==
+                      src_app_id &&
+                  get_state_ctx(ctx, "active_remote_host_ids")[index] ==
+                      src_host_id);
+  } else {
+    return (bool)(get_state_ctx(ctx, "active_local_app_ids")[index] ==
+                  dst_app_id);
+  }
+}
+
+static builder::dyn_var<connection_t *>
+retrieve_connection_ctx(builder::dyn_var<runtime::context_t *> ctx,
+                        builder::dyn_var<unsigned int> appid,
+                        builder::dyn_var<unsigned int> src_app_id,
+                        builder::dyn_var<unsigned long long> src_host_id,
+                        identifier_module::flow_identifier_t flow_id) {
+  builder::dyn_var<connection_t *> c = 0;
+  builder::dyn_var<int> total = get_state_ctx(ctx, "num_conn");
+  for (builder::dyn_var<int> i = 0; i < total; i = i + 1) {
+    if (match_connection_ctx(ctx, i, appid, src_app_id, src_host_id, flow_id)) {
+      c = get_state_ctx(ctx, "active_connections")[i];
+      break;
+    }
+  }
+  return c;
+}
+
+static builder::dyn_var<connection_t *>
+retrieve_wildcard_connection_ctx(builder::dyn_var<runtime::context_t *> ctx,
+                                 builder::dyn_var<unsigned int> appid) {
+  builder::dyn_var<connection_t *> c = 0;
+  builder::dyn_var<int> total = get_state_ctx(ctx, "num_conn");
+  for (builder::dyn_var<int> i = 0; i < total; i = i + 1) {
+    if (get_state_ctx(ctx, "active_local_app_ids")[i] == appid &&
+        get_state_ctx(ctx, "active_remote_app_ids")[i] == WILDCARD_APP_ID &&
+        get_state_ctx(ctx, "active_remote_host_ids")[i] ==
+            get_ctx(ctx, "nb__wildcard_host_identifier")) {
+      c = get_state_ctx(ctx, "active_connections")[i];
+      break;
+    }
+  }
+  return c;
+}
+
+static void
+delete_connection_ctx(builder::dyn_var<runtime::context_t *> ctx,
+                      builder::dyn_var<unsigned int> appid,
+                      builder::dyn_var<unsigned int> src_app_id,
+                      builder::dyn_var<unsigned long long> src_host_id,
+                      identifier_module::flow_identifier_t flow_id) {
+
+  builder::dyn_var<int> total = get_state_ctx(ctx, "num_conn");
+
+  for (builder::dyn_var<int> i = 0; i < total; i = i + 1) {
+    if (match_connection_ctx(ctx, i, appid, src_app_id, src_host_id, flow_id)) {
+      total = total - 1;
+      get_state_ctx(ctx, "num_conn") = total;
+      get_state_ctx(ctx, "active_local_app_ids")[i] =
+          get_state_ctx(ctx, "active_local_app_ids")[total];
+      get_state_ctx(ctx, "active_connections")[i] =
+          get_state_ctx(ctx, "active_connections")[total];
+      if (flow_id == identifier_module::flow_identifier_t::src_dst_identifier) {
+        get_state_ctx(ctx, "active_remote_app_ids")[i] =
+            get_state_ctx(ctx, "active_remote_app_ids")[total];
+        get_state_ctx(ctx, "active_remote_host_ids")[total] =
+            get_state_ctx(ctx, "active_remote_host_ids")[i];
+      }
+      break;
+    }
+  }
+}
+
+module::hook_status identifier_module::hook_establish_ctx(
+    builder::dyn_var<runtime::context_t *> ctx,
+    builder::dyn_var<connection_t *> c, builder::dyn_var<unsigned int> h,
+    builder::dyn_var<unsigned int> a, builder::dyn_var<unsigned int> sa) {
+
+  builder::dyn_var<unsigned long long> host_local_id =
+      runtime::routing_lookup_from_global(
+          h, get_state_ctx(ctx, "routing_table"),
+          get_state_ctx(ctx, "routing_table_len"));
+
+  conn_layout.get(c, "remote_host_id") = host_local_id;
+  conn_layout.get(c, "remote_app_id") = a;
+  conn_layout.get(c, "local_app_id") = sa;
+
+  conn_layout.get(c, "input_queue") = runtime::new_data_queue();
+  conn_layout.get(c, "accept_queue") = runtime::new_accept_queue();
+  add_connection_ctx(ctx, c, sa, a, host_local_id, flow_identifier);
+  return module::hook_status::HOOK_CONTINUE;
+}
+
+module::hook_status identifier_module::hook_destablish_ctx(
+    builder::dyn_var<runtime::context_t *> ctx,
+    builder::dyn_var<connection_t *> c) {
+  delete_connection_ctx(ctx, conn_layout.get(c, "local_app_id"),
+                        conn_layout.get(c, "remote_app_id"),
+                        conn_layout.get(c, "remote_host_id"), flow_identifier);
+  runtime::free_data_queue(conn_layout.get(c, "input_queue"));
+  runtime::free_accept_queue(conn_layout.get(c, "accept_queue"));
+
+  return module::hook_status::HOOK_CONTINUE;
+}
+
+module::hook_status
+identifier_module::hook_send_ctx(builder::dyn_var<runtime::context_t *> ctx,
+                                 builder::dyn_var<connection_t *> c, packet_t p,
+                                 builder::dyn_var<char *> buff,
+                                 builder::dyn_var<unsigned int> len,
+                                 builder::dyn_var<int *> ret_len) {
+
+  net_packet["dst_host_id"]->set_integer(p,
+                                         conn_layout.get(c, "remote_host_id"));
+  net_packet["dst_app_id"]->set_integer(p, conn_layout.get(c, "remote_app_id"));
+  net_packet["src_host_id"]->set_integer(p,
+                                         get_ctx(ctx, "nb__my_local_host_id"));
+  net_packet["src_app_id"]->set_integer(p, conn_layout.get(c, "local_app_id"));
+
+  if (framework::instance.isEthCompat())
+    net_packet["protocol_identifier"]->set_integer(p, htons(0x0800));
+  else
+    net_packet["protocol_identifier"]->set_integer(p, htons(0x88B5));
+  return module::hook_status::HOOK_CONTINUE;
+}
+
+module::hook_status
+identifier_module::hook_ingress_ctx(builder::dyn_var<runtime::context_t *> ctx,
+                                    packet_t p) {
+  if (net_packet["dst_host_id"]->get_integer(p) !=
+      get_ctx(ctx, "nb__my_local_host_id"))
+    return module::hook_status::HOOK_DROP;
+
+  if (net_packet["protocol_identifier"]->get_integer(p) != htons(0x88B5))
+    return module::hook_status::HOOK_DROP;
+
+  // Identify connection based on target app id
+  builder::dyn_var<unsigned int> dst_app_id =
+      net_packet["dst_app_id"]->get_integer(p);
+  builder::dyn_var<unsigned int> src_app_id =
+      net_packet["src_app_id"]->get_integer(p);
+  builder::dyn_var<unsigned long long> src_host_id =
+      net_packet["src_host_id"]->get_integer(p);
+  builder::dyn_var<connection_t *> c = retrieve_connection_ctx(
+      ctx, dst_app_id, src_app_id, src_host_id, flow_identifier);
+
+  if (c != 0) {
+    net_packet["flow_identifier"]->set_integer(p, runtime::to_ull(c));
+    return module::hook_status::HOOK_CONTINUE;
+  }
+
+  // If we didn't find an exact match and the implementation uses src-dst
+  // identifiers, check for a wildcard match
+  if (flow_identifier != flow_identifier_t::src_dst_identifier)
+    return module::hook_status::HOOK_DROP;
+
+  c = retrieve_wildcard_connection_ctx(ctx, dst_app_id);
 
   if (c != 0) {
     runtime::insert_accept_queue(conn_layout.get(c, "accept_queue"), src_app_id,
