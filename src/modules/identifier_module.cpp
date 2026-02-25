@@ -53,7 +53,7 @@ void identifier_module::init_module(void) {
   net_packet.add_member("src_host_id", src_host_id, 1);
 
   // Member to identify protocol
-  if (framework::instance.isEthCompat())
+  //if (framework::instance.isEthCompat())
     net_packet.add_member(
         "protocol_identifier",
         new generic_integer_member<unsigned short>((int)member_flags::aligned),
