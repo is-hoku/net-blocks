@@ -21,7 +21,7 @@ static void callback(int event, nb__connection_t * c) {
 }
 
 int main(int argc, char* argv[]) {
-	nb__linux_runtime_init("dummy0");
+	nb__linux_runtime_init("wlp0s20f3");
 	printf("Linux Runtime initialized\n");
 	nb__net_init();
 
